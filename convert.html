@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polar Flow JSON to GPX Converter</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background-color: #f4f4f9; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { margin-top: 0; color: #333; }
+        input[type="file"] { margin: 20px 0; display: block; }
+        button { 
+            background-color: #007bff; color: white; border: none; 
+            padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%;
+            font-size: 1rem;
+        }
+        button:hover { background-color: #0056b3; }
+        .error { color: red; font-size: 0.8rem; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Polar Flow JSON to GPX</h2>
+    <p>Select a JSON file containing the Polar planned routes.</p>
+    
+    <input type="file" id="jsonInput" accept=".json">
+    <button onclick="convertFile()">Convert & Download</button>
+    
+    <div id="status" class="error"></div>
+</div>
+
+<script>
+    function convertFile() {
+        const fileInput = document.getElementById('jsonInput');
+        const status = document.getElementById('status');
+        status.innerText = "";
+
+        if (!fileInput.files[0]) {
+            status.innerText = "Please select a file first.";
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const jsonData = JSON.parse(e.target.result);
+                const gpxString = jsonToGpx(jsonData);
+                downloadFile(gpxString, file.name.replace(".json", ".gpx"));
+            } catch (err) {
+                status.innerText = "Error: Invalid JSON format. Ensure it's an array of {lat, lon} objects.";
+                console.error(err);
+            }
+        };
+
+        reader.readAsText(file);
+    }
+
+    /**
+     * Converts JSON data to GPX XML string.
+     */
+    function jsonToGpx(data) {
+        const id = data.id;
+        const name = data.name;
+        // Handle cases where data might be nested under a key
+        const points = Array.isArray(data.waypoints) ? data.waypoints : [];
+        
+        let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="BrowserConverter" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>${name}</name>
+    <trkseg>`;
+
+        points.forEach(pt => {
+            const lat = pt.location.latitude;
+            const lon = pt.location.longitude;
+            const ele = pt.location.altitude;
+            const timeMillis = pt.timeInMillis;
+            if (lat !== undefined && lon !== undefined) {
+                gpx += `
+      <trkpt lat="${lat}" lon="${lon}">
+        <ele>${ele}</ele>
+        <time>${timeMillis}</time>
+      </trkpt>`;
+            }
+        });
+
+        gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+        return gpx;
+    }
+
+    function downloadFile(content, fileName) {
+        const blob = new Blob([content], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
